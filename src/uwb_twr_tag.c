@@ -37,6 +37,8 @@
 #include "dwOps.h"
 #include "mac.h"
 
+#include "lpp.h"
+
 static uint8_t base_address[] = {0,0,0,0,0,0,0xcf,0xbc};
 
 // The four packets for ranging
@@ -77,6 +79,10 @@ static dwTime_t answer_rx;
 static dwTime_t final_tx;
 static dwTime_t final_rx;
 
+// Anchor position for positioning
+static bool anchor_has_position;
+static float anchor_position[3];
+
 static const double C = 299792458.0;       // Speed of light
 static const double tsfreq = 499.2e6 * 128;  // Timestamp counter frequency
 
@@ -112,6 +118,9 @@ static void txcallback(dwDevice_t *dev)
 
 #define TYPE 0
 #define SEQ 1
+#define LPP_HEADER 2
+#define LPP_TYPE 3
+#define LPP_PAYLOAD 4
 
 static void rxcallback(dwDevice_t *dev) {
   dwTime_t arival = { .full=0 };
@@ -146,6 +155,13 @@ static void rxcallback(dwDevice_t *dev) {
         return;
       }
 
+      // Retain anchor position if available
+      if(rxPacket.payload[LPP_HEADER] == SHORT_LPP && rxPacket.payload[LPP_TYPE] == LPP_SHORT_ANCHOR_POSITION){
+        struct lppShortAnchorPosition_s *pos = (struct lppShortAnchorPosition_s*) &rxPacket.payload[LPP_PAYLOAD];
+        memcpy(anchor_position, pos->position, 3*sizeof(float));
+        anchor_has_position = true;
+      }
+
       txPacket.payload[0] = FINAL;
       txPacket.payload[SEQ] = rxPacket.payload[SEQ];
 
@@ -174,22 +190,23 @@ static void rxcallback(dwDevice_t *dev) {
       memcpy(&poll_rx, &report->pollRx, 5);
       memcpy(&answer_tx, &report->answerTx, 5);
       memcpy(&final_rx, &report->finalRx, 5);
-
+      /*
       printf("%02x%08x ", (unsigned int)poll_tx.high8, (unsigned int)poll_tx.low32);
       printf("%02x%08x\r\n", (unsigned int)poll_rx.high8, (unsigned int)poll_rx.low32);
       printf("%02x%08x ", (unsigned int)answer_tx.high8, (unsigned int)answer_tx.low32);
       printf("%02x%08x\r\n", (unsigned int)answer_rx.high8, (unsigned int)answer_rx.low32);
       printf("%02x%08x ", (unsigned int)final_tx.high8, (unsigned int)final_tx.low32);
       printf("%02x%08x\r\n", (unsigned int)final_rx.high8, (unsigned int)final_rx.low32);
+      */
 
       tround1 = answer_rx.low32 - poll_tx.low32;
       treply1 = answer_tx.low32 - poll_rx.low32;
       tround2 = final_rx.low32 - answer_tx.low32;
       treply2 = final_tx.low32 - answer_rx.low32;
 
-      printf("%08x %08x\r\n", (unsigned int)tround1, (unsigned int)treply2);
-      printf("\\    /   /     \\\r\n");
-      printf("%08x %08x\r\n", (unsigned int)treply1, (unsigned int)tround2);
+      //printf("%08x %08x\r\n", (unsigned int)tround1, (unsigned int)treply2);
+      //printf("\\    /   /     \\\r\n");
+      //printf("%08x %08x\r\n", (unsigned int)treply1, (unsigned int)tround2);
 
       tprop_ctn = ((tround1*tround2) - (treply1*treply2)) / (tround1 + tround2 + treply1 + treply2);
 
@@ -203,7 +220,9 @@ static void rxcallback(dwDevice_t *dev) {
       dwGetReceiveTimestamp(dev, &arival);
       arival.full -= (ANTENNA_DELAY/2);
       printf("Total in-air time (ctn): 0x%08x\r\n", (unsigned int)(arival.low32-poll_tx.low32));
-
+      if (anchor_has_position){
+        printf("Anchor %d Position (x, y, z): %.2f,%.2f,%.2f\r\n", rxPacket.sourceAddress[0], anchor_position[0], anchor_position[1], anchor_position[2]);
+      }
       break;
     }
   }
