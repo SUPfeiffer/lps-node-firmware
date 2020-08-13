@@ -2,8 +2,11 @@ OPENOCD           ?= openocd
 OPENOCD_INTERFACE ?= interface/stlink-v2.cfg
 REV               ?= B
 PYTHON2           ?= python2
-# CFLAGS          += -fdiagnostics-color=auto
-# CFLAGS += -DUSE_FTDI_UART
+# CFLAGS          	+= -fdiagnostics-color=auto
+# CFLAGS 			+= -DUSE_FTDI_UART
+
+# Force Tx power: Max 0x1F1F1F1Ful
+CFLAGS			+= -DFORCE_TX_POWER=0x1F1F1F1Ful
 
 BOOTLOAD          ?= 0
 

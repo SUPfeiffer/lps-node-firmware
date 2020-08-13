@@ -163,11 +163,17 @@ void uwbInit()
   }
 
   // Do not force power by default
-  uint8_t forceTxPower = 0;
+  #ifdef FORCE_TX_POWER
+    uint8_t forceTxPower = 1;
+    uint32_t txPower = FORCE_TX_POWER;
+  #else
+    uint8_t forceTxPower = 0;
+    uint32_t txPower = 0x1F1F1F1Ful;
+  #endif
+
   cfgReadU8(cfgForceTxPower, &forceTxPower);
   config.forceTxPower = forceTxPower != 0;
   if (forceTxPower) {
-    uint32_t txPower = 0x1F1F1F1Ful;
     cfgReadU32(cfgTxPower, &txPower);
     config.txPower = txPower;
     dwSetTxPower(dwm, txPower);
